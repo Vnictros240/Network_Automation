@@ -1,0 +1,59 @@
+---
+- name: Update Cisco IOS-XE Banner Configuration
+  hosts: all
+  gather_facts: false
+  connection: network_cli
+
+  vars:
+    banner_login_text: |
+      ******************************************************************
+      *  WARNING: Unauthorized access is prohibited and monitored.     *
+      *  Disconnect immediately if you are not an authorized user.     *
+      ******************************************************************
+
+    banner_motd_text: |
+      ******************************************************************
+      *  Welcome to the Network. Authorized use only.                  *
+      ******************************************************************
+
+  tasks:
+
+    - name: Gather existing login banner
+      cisco.ios.ios_command:
+        commands:
+          - "show running-config | include ^banner login"
+      register: login_banner_check
+
+    - name: Gather existing MOTD banner
+      cisco.ios.ios_command:
+        commands:
+          - "show running-config | include ^banner motd"
+      register: motd_banner_check
+
+    - name: Set login banner presence flag
+      ansible.builtin.set_fact:
+        login_banner_present: "{{ 'banner login' in login_banner_check.stdout[0] }}"
+
+    - name: Set MOTD banner presence flag
+      ansible.builtin.set_fact:
+        motd_banner_present: "{{ 'banner motd' in motd_banner_check.stdout[0] }}"
+
+    - name: Configure login banner if missing or needs update
+      cisco.ios.ios_config:
+        lines:
+          - "banner login ^{{ banner_login_text }}^"
+        match: none
+      when: not login_banner_present or
+            (banner_login_text not in login_banner_check.stdout[0])
+
+    - name: Configure MOTD banner if missing or needs update
+      cisco.ios.ios_config:
+        lines:
+          - "banner motd ^{{ banner_motd_text }}^"
+        match: none
+      when: not motd_banner_present or
+            (banner_motd_text not in motd_banner_check.stdout[0])
+
+    - name: Save configuration if modified
+      cisco.ios.ios_config:
+        save_when: modified
