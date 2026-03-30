@@ -1,0 +1,50 @@
+---
+- name: Ensure VLAN exists and is added to trunk (add-only behavior)
+  hosts: all
+  gather_facts: false
+  connection: network_cli
+
+  vars:
+    vlan_id: 100
+    vlan_name: USERS_VLAN
+    trunk_interface: GigabitEthernet1/0/1
+
+  tasks:
+
+    - name: Check if VLAN exists
+      cisco.ios.ios_command:
+        commands:
+          - "show vlan brief | include ^{{ vlan_id }}\\s"
+      register: vlan_check
+
+    - name: Set VLAN presence flag
+      ansible.builtin.set_fact:
+        vlan_present: "{{ vlan_check.stdout[0] | length > 0 }}"
+
+    - name: Create VLAN if missing
+      cisco.ios.ios_config:
+        lines:
+          - "name {{ vlan_name }}"
+        parents: "vlan {{ vlan_id }}"
+      when: not vlan_present
+
+    - name: Check trunk allowed VLANs on interface
+      cisco.ios.ios_command:
+        commands:
+          - "show running-config interface {{ trunk_interface }} | include switchport trunk allowed vlan"
+      register: trunk_check
+
+    - name: Set trunk VLAN presence flag
+      ansible.builtin.set_fact:
+        vlan_in_trunk: "{{ (vlan_id | string) in trunk_check.stdout[0] | default('') }}"
+
+    - name: Add VLAN to trunk using ADD (non-destructive)
+      cisco.ios.ios_config:
+        parents: "interface {{ trunk_interface }}"
+        lines:
+          - "switchport trunk allowed vlan add {{ vlan_id }}"
+      when: not vlan_in_trunk
+
+    - name: Save configuration if modified
+      cisco.ios.ios_config:
+        save_when: modified
