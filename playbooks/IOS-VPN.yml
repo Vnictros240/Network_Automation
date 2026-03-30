@@ -1,0 +1,29 @@
+- name: Gather IKEv2 profile config
+  cisco.ios.ios_command:
+    commands:
+      - "show running-config | section ^crypto ikev2 profile {{ ikev2_profile_name }}"
+  register: ikev2_profile_section
+
+- name: Set detailed flags for IKEv2 profile
+  ansible.builtin.set_fact:
+    ikev2_match_identity_present: "{{ ('match identity remote address ' ~ remote_peer_ip ~ ' 255.255.255.255') in ikev2_profile_section.stdout[0] }}"
+    ikev2_identity_local_present: "{{ ('identity local fqdn ' ~ local_fqdn) in ikev2_profile_section.stdout[0] }}"
+    ikev2_auth_local_present: "{{ 'authentication local pre-share' in ikev2_profile_section.stdout[0] }}"
+    ikev2_auth_remote_present: "{{ 'authentication remote pre-share' in ikev2_profile_section.stdout[0] }}"
+    ikev2_keyring_local_present: "{{ ('keyring local ' ~ ikev2_keyring_name) in ikev2_profile_section.stdout[0] }}"
+
+- name: Add missing IKEv2 profile lines only
+  cisco.ios.ios_config:
+    parents: "crypto ikev2 profile {{ ikev2_profile_name }}"
+    lines: "{{ ikev2_missing_lines }}"
+  vars:
+    ikev2_missing_lines: >-
+      {{
+        []
+        + ([ 'match identity remote address ' ~ remote_peer_ip ~ ' 255.255.255.255' ] if not ikev2_match_identity_present else [])
+        + ([ 'identity local fqdn ' ~ local_fqdn ] if not ikev2_identity_local_present else [])
+        + ([ 'authentication local pre-share' ] if not ikev2_auth_local_present else [])
+        + ([ 'authentication remote pre-share' ] if not ikev2_auth_remote_present else [])
+        + ([ 'keyring local ' ~ ikev2_keyring_name ] if not ikev2_keyring_local_present else [])
+      }}
+  when: ikev2_missing_lines | length > 0
