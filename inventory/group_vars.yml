@@ -1,0 +1,33 @@
+---
+
+# Default (secure) connection settings for all devices
+ansible_connection: network_cli
+ansible_network_os: ios
+ansible_user: admin
+ansible_password: password
+ansible_become: true
+ansible_become_method: enable
+ansible_become_password: enable_password
+
+# Default to SSH unless overridden
+ansible_network_cli_transport: ssh
+
+
+# -------------------------------------------------------------------
+# group_vars/ssh_devices.yml
+# -------------------------------------------------------------------
+ansible_network_cli_transport: ssh
+ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+ansible_command_timeout: 30
+
+
+# -------------------------------------------------------------------
+# group_vars/telnet_devices.yml
+# -------------------------------------------------------------------
+ansible_network_cli_transport: telnet
+ansible_command_timeout: 60
+
+# Telnet-specific tuning (slower, less reliable)
+ansible_persistent_connect_timeout: 60
+ansible_persistent_command_timeout: 60
+ansible_buffer_read_timeout: 2
